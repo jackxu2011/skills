@@ -188,30 +188,34 @@ len(前缀_) + len(表名) + Σ(len(字段名) + 1)  ≤  目标库上限
 - **表名建议 ≤ 30 字符**（硬上限仍是 64）。`fk_<本表>_<引用表>` 要把两个表名相加：`3 + 30 + 1 + 30 = 64`，表名再长一点就直接顶穿
 - 复合索引最吃长度：每多一列就多 `<字段名>_` 一段，3-4 个长字段名很容易 70+
 
-**原则：先缩词，后砍段；缩词先缩表名段。** 表名段（模块前缀 + 功能点）是对象名里最长的一段，**优先缩它的功能点单词**，字段名段能不动就不动；两者都缩了仍超，才砍段。缩写**单词**是无损的（模块、功能点、每个索引列都还能从名字读出来），砍掉整段才是丢信息。按下面的阶梯**逐级降级，降到不超就停**：
+**原则：先缩词，后砍段；缩词先缩表名段，每个单词缩到 2–4 字符。** 表名段（模块前缀 + 功能点）是对象名里最长的一段，**优先缩它的功能点单词**，字段名段能不动就不动；两者都缩了仍超，才砍段。缩写**单词**是无损的（模块、功能点、每个索引列都还能从名字读出来），砍掉整段才是丢信息。按下面的阶梯**逐级降级，降到不超就停**：
 
 示例：表 `fin_customer_reconciliation`，索引列 `customer_id, reconcile_status, created_at`
 
 | 级 | 做法 | 结果 | 长度 |
 |----|------|------|------|
 | 0 | 全拼 | `idx_fin_customer_reconciliation_customer_id_reconcile_status_created_at` | 71 ✗ |
-| 1 | 先缩**表名段的功能点单词**（缩写规则见下），模块前缀 `fin` 原样保留（它是反查表的路由信息）。**表名段是最大的长度来源，先从它下手，字段名段一个字不动** | `idx_fin_cust_recon_customer_id_reconcile_status_created_at` | 58 ✓ MySQL/PgSQL 到此为止 |
-| 2 | 仍超再缩**字段名段里的单词**，从**最后一列往前**缩；缩到 3-4 字母仍超就连前导列一起缩。**所有索引列仍出现在名字里** | `idx_fin_cust_recon_customer_id_recon_status_created` | 51 ✓ |
-| 3 | 目标库更紧（Oracle 12.1 上限 30）才走：砍非前导列，留**前导列 + `_Ncol`**（N = 索引列数），完整列序写进 DDL 注释或索引 `COMMENT` | `idx_fin_cust_recon_cust_id_3col` | 31 ✗ |
-| 4 | 兜底：`idx_<表名段>_<序号>`，序号 = 该表 DDL 中第几个索引（从 1 起） | `idx_fin_cust_recon_1` | 20 ✓ |
+| 1 | 先缩**表名段**：功能点每个单词缩到 **2–4 字符**（`customer`→`cus`、`reconciliation`→`rcn`），模块前缀 `fin` 原样保留（它是反查表的路由信息）；**仍超就改用多词首字母连写**：`customer_reconciliation`→`cr`，得 `idx_fin_cr_customer_id_reconcile_status_created_at`（50）。**表名段是最大的长度来源，先从它下手，字段名段一个字不动** | `idx_fin_cus_rcn_customer_id_reconcile_status_created_at` | 55 ✓ MySQL/PgSQL 到此为止 |
+| 2 | 仍超再缩**字段名段**：每个单词同样缩到 **2–4 字符**（`customer`→`cus`、`reconcile`→`rcn`、`status`→`sts`），同样可多词首字母连写（`reconcile_status`→`rs`），统一字段 `created_at` 不缩。**所有索引列仍出现在名字里** | `idx_fin_cus_rcn_cus_id_rcn_sts_created_at` | 41 ✓ |
+| 3 | 目标库更紧（Oracle 12.1 上限 30）才走：砍非前导列，留**前导列 + `_Ncol`**（N = 索引列数），完整列序写进 DDL 注释或索引 `COMMENT` | `idx_fin_cus_rcn_cus_id_3col` | 27 ✓ |
+| 4 | 兜底：`idx_<表名段>_<序号>`，序号 = 该表 DDL 中第几个索引（从 1 起） | `idx_fin_cus_rcn_1` | 17 ✓ |
 
 - 级 1-2 无损；只跑 MySQL / PgSQL 时**级 1 通常就够了**（表名一缩就掉进上限）。级 3-4 开始丢列信息，只给 Oracle 12.1（30）这类紧上限用
-- `fk_<本表>_<引用表>` 有两段表名，级 1 对两段都适用：`fk_fin_customer_reconciliation_cu_customer`（42）→ `fk_fin_cust_recon_cu_cust`（25）
+- `fk_<本表>_<引用表>` 有两段表名，级 1 对两段都适用：`fk_fin_customer_reconciliation_cu_customer`（42）→ `fk_fin_cus_rcn_cu_cus`（21）
 - **连级 4 都超 → 表名本身太长，回去改表名**（这正是"表名建议 ≤ 30"的原因）
 - 降级后**仍须在本表内唯一**：撞名加 `_2` / `_3`（沿用级 4 的序号写法，不要另起一套）
 
-**缩写怎么取**（原则同[基本命名原则](#基本命名原则)的原则1——完整单词优先，长了才缩；下面是索引名段的具体写法）
+**缩写怎么取：每个单词缩到 2–4 个字符，不定死。**
 
-1. 公认缩写优先：`customer`→`cust`、`message`→`msg`、`amount`→`amt`、`quantity`→`qty`、`number`→`no`、`description`→`descr`、`configuration`→`config`、`reconciliation`→`recon`、`priority`→`prio`、`attachment`→`attach`
-2. 没有公认缩写就取单词头 3-4 个字母：`settlement`→`sett`、`shipment`→`ship`
-3. **同一个词全项目只用一种缩写**，和模块前缀表一起登记在项目 README / wiki，不要 `cust` / `cst` / `cmr` 混用
-4. 不许用的缩写：撞 SQL 关键字（`desc` / `order` / `group` / `select`）、单字母（`_id` / `_no` 这类既定后缀除外）、拼音或拼音首字母（`kh` / `gd`）
-5. **只缩派生名，不改对象本身**：表仍叫 `fin_customer_reconciliation`、字段仍叫 `customer_id`，统一字段（`created_at` / `removed` / `version`）更不许为凑长度改名——反查靠 DDL 里的 `ON <表名全名>` 和名字里的模块前缀
+> 本节只管**派生名（索引 / 约束名）里为凑长度做的缩写**。表名、字段名本身仍按[基本命名原则](#基本命名原则)用完整英文单词——不冲突：缩的是拼进派生名里的那一段，不是改对象名。
+
+1. **每个单词缩到 2–4 个字符**，长度按单词长短定（长单词缩到 3–4，短单词缩到 2），优先用公认缩写：`customer`→`cus`、`reconciliation`→`rcn`、`message`→`msg`、`amount`→`amt`、`quantity`→`qty`、`status`→`sts`、`description`→`dsc`、`configuration`→`cfg`、`priority`→`pri`、`attachment`→`att`
+2. 没有公认缩写就取单词**头 2–4 个字母**：`shipment`→`ship`、`settlement`→`stl`；单词本身已经够短就不动（`id`、`no`、`at`、`log`）
+3. **极端情况：多个单词首字母直接连写。** 逐词缩完还超，就不再逐词缩，把这一段里每个单词的首字母连起来当缩写：`customer_reconciliation`→`cr`、`reconcile_status`→`rs`、`phone_number`→`pn`
+4. **缩写不得占用模块前缀或对象前缀**（全表见[前缀命名规则](#前缀命名规则)与上文模块前缀表）。容易撞的：`customer` 不要缩成 `cst`（被「约束 CONSTRAINT」的 `cst_` 占用）、`product` 不要缩成 `prod`、`work_order` 不要连写成 `wo`、`invoice` 不要缩成 `inv`——这些都跟前缀同形，会让名字读不出是表还是对象。缩写连写结果若撞了，就换一个 2–4 字母组合或退回逐词缩写
+5. **同一个词全项目只用一种缩写**，和模块前缀表一起登记在项目 README / wiki，不要 `cst` / `cust` / `cmr` 混用
+6. 不许用的缩写：撞 SQL 关键字（`desc` / `order` / `group` / `select` / `set` / `key` / `all`）、单字母（`_id` / `_no` 这类既定后缀除外）、拼音或拼音首字母（`kh` / `gd`）。撞关键字就换词内另一个 3 字母组合：`settlement` 头 3 字母是 `set`（SQL 关键字）→ 取 `stl`
+7. **只缩派生名，不改对象本身**：表仍叫 `fin_customer_reconciliation`、字段仍叫 `customer_id`，统一字段（`created_at` / `removed` / `version`）更不许为凑长度改名——反查靠 DDL 里的 `ON <表名全名>` 和名字里的模块前缀
 
 **任何一级都不许做的事：**
 

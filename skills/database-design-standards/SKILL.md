@@ -19,7 +19,7 @@ SKILL.md 只放**硬约束 + 取名 5 步 + 自检清单 + 索引**，细则按�
 - 用完整英文单词或公认缩写，**禁止拼音及拼音-英文混合**（`wo_gongdan`、`cu_kehu` ✗）
 - 模块前缀 2-4 字母，常用 `wo` `cu` `fin` `sys` `org` `prod` `ord` `inv` `log` `all`；不得占用对象前缀（`fn`/`idx`/`seq`/`pk`…全表见 naming.md）
 - 索引 `idx_<表名>_<字段>`、唯一键 `uk_<表名>_<字段>`、主键 `pk_<表名>`；**表名段不许省**（`idx_status` ✗）——**索引名唯一范围各库不同**（PG / Oracle 是 **schema 内唯一**，MySQL / SQL Server / H2 是表内唯一），省了表名段换库就撞名
-- 索引/约束名 ≤ 目标库上限（MySQL 64、PgSQL 63 字节且**静默截断**）：超长时**先缩词后砍段，缩词先缩表名段**（表名段最长、是最大来源），仍超再缩字段名段；缩写取公认缩写（`customer`→`cust`、`reconciliation`→`recon`），砍掉整列是最后手段；禁省表名段、禁随机后缀 → [naming.md 降级阶梯](references/naming.md#对象名长度与超长降级)
+- 索引/约束名 ≤ 目标库上限（MySQL 64、PgSQL 63 字节且**静默截断**）：超长时**先缩词后砍段，缩词先缩表名段**（表名段最长、是最大来源），仍超再缩字段名段；**每个单词缩到 2–4 字符**（`customer`→`cus`、`reconciliation`→`rcn`、`status`→`sts`），极端时**多词首字母连写**（`customer_reconciliation`→`cr`），砍掉整列是最后手段；禁省表名段、禁随机后缀 → [naming.md 降级阶梯](references/naming.md#对象名长度与超长降级)
 - 用到统一字段就叫对名字：`created_at` / `created_by` / `updated_*` / `removed` / `version` / `sort_order`——禁 `create_time` / `is_deleted` / `del_flag` 变体
 - **默认不建物理外键**：不写 `FOREIGN KEY` / `REFERENCES` / `ON DELETE CASCADE`；关联字段**必须被索引覆盖**——单独 `idx_<表名>_<字段>`，**或**联合索引的**最左前导列**（只落在联合索引的非前导位置不算覆盖）
 - 统一字段在规范里只给**逻辑类型**（`boolean`/`tinyint`/`bigint`/`datetime`/`int`），DDL 必须落成**目标物理库**的类型——**`TINYINT` 不是通用类型**（PG 用 `SMALLINT`、Oracle 用 `NUMBER(3)`、SQL Server 的 `TINYINT` 是无符号 0–255），**禁止跨库照抄 MySQL** → [references/type-mapping.md](references/type-mapping.md)
@@ -49,7 +49,7 @@ SKILL.md 只放**硬约束 + 取名 5 步 + 自检清单 + 索引**，细则按�
 - [ ] 模块前缀未占用对象前缀（`fk` / `idx` / `seq` / `pk` 等 19 个）
 - [ ] 用到统一字段就叫对名字：`created_at` / `created_by` / `updated_*` / `removed` / `version` / `sort_order`，无 `create_time` / `is_deleted` / `del_flag` 变体
 - [ ] 每个关联字段都被索引覆盖：单独 `idx_<表名>_<字段>`，**或**在某个联合索引里当**最左前导列**（只在非前导位置 = 没覆盖）——默认不建物理外键，索引是 JOIN 性能的唯一保障
-- [ ] 索引/约束名未超目标库上限（MySQL 64、PgSQL 63）：超长时**先缩表名段，再缩字段名段，最后才砍段**，缩写全项目一致，**表名段保留**、无随机后缀
+- [ ] 索引/约束名未超目标库上限（MySQL 64、PgSQL 63）：超长时**先缩表名段，再缩字段名段，最后才砍段**，每个单词**缩到 2–4 字符**且全项目一致，**表名段保留**、无随机后缀
 - [ ] SQL 文本：关键字大写、2 空格缩进、无 `SELECT *`、`INSERT` 指定字段名
 - [ ] 统一字段的类型已按**目标物理库**换算（不是照抄逻辑类型，**更不是照抄 MySQL 的 `TINYINT`**）→ [references/type-mapping.md](references/type-mapping.md)
 - [ ] `id` 已按生成策略定类型且同批表一致（自增/雪花数值 `bigint`，ULID/UUID `varchar(36)`），关联字段 `<引用表功能点>_id` 与被引用主键同类型
