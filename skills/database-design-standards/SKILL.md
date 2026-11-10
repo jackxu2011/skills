@@ -17,11 +17,11 @@ SKILL.md 只放**硬约束 + 取名 5 步 + 自检清单 + 索引**，细则按�
 
 - 表名 = `<模块前缀>_<功能点>`，全小写、**单数**、≤ 64 字符（**建议 ≤ 30**，给索引名留余量）、**不带库前缀**（`wo_workorder` ✓，`app_wo_workorder` ✗）
 - 用完整英文单词或公认缩写，**禁止拼音及拼音-英文混合**（`wo_gongdan`、`cu_kehu` ✗）
-- 模块前缀 2-4 字母，常用 `wo` `cu` `fin` `sys` `org` `prod` `ord` `inv` `log` `all`；不得占用对象前缀（`fn`/`idx`/`seq`/`pk`…全表见 naming.md）
-- 索引 `idx_<表名>_<字段>`、唯一键 `uk_<表名>_<字段>`、主键 `pk_<表名>`；**表名段不许省**（`idx_status` ✗）——**索引名唯一范围各库不同**（PG / Oracle 是 **schema 内唯一**，MySQL / SQL Server / H2 是表内唯一），省了表名段换库就撞名
-- 索引/约束名 ≤ 目标库上限（MySQL 64、PgSQL 63 字节且**静默截断**）：超长时**先缩词后砍段，缩词先缩表名段**（表名段最长、是最大来源），仍超再缩字段名段；**每个单词缩到 2–4 字符**（`customer`→`cus`、`reconciliation`→`rcn`、`status`→`sts`），极端时**多词首字母连写**（`customer_reconciliation`→`cr`），砍掉整列是最后手段；禁省表名段、禁随机后缀 → [naming.md 降级阶梯](references/naming.md#对象名长度与超长降级)
+- 模块前缀 2-4 字母，常用 `wo` `cu` `fin` `sys` `org` `prod` `ord` `inv` `log` `all`；不得占用对象前缀（`fn`/`i`/`seq`/`pk`…全表见 naming.md）
+- 索引 `i_<表名>_<字段>`、唯一键 `uk_<表名>_<字段>`、主键 `pk_<表名>`；**表名段不许省**（`i_status` ✗）——**索引名唯一范围各库不同**（PG / Oracle 是 **schema 内唯一**，MySQL / SQL Server / H2 是表内唯一），省了表名段换库就撞名
+- 索引/约束名 ≤ 目标库上限（MySQL 64、PgSQL 63 字节且**静默截断**）：超长时**先缩词后砍段，缩词先缩表名段**（表名段最长、是最大来源），仍超再缩字段名段；**每个单词缩到 2–4 字符**（`customer`→`cst`、`reconciliation`→`rcn`、`status`→`sts`），极端时**多词首字母连写**（`customer_reconciliation`→`cr`），砍掉整列是最后手段；禁省表名段、禁随机后缀 → [naming.md 降级阶梯](references/naming.md#对象名长度与超长降级)
 - 用到统一字段就叫对名字：`created_at` / `created_by` / `updated_*` / `removed` / `version` / `sort_order`——禁 `create_time` / `is_deleted` / `del_flag` 变体
-- **默认不建物理外键**：不写 `FOREIGN KEY` / `REFERENCES` / `ON DELETE CASCADE`；关联字段**必须被索引覆盖**——单独 `idx_<表名>_<字段>`，**或**联合索引的**最左前导列**（只落在联合索引的非前导位置不算覆盖）
+- **默认不建物理外键**：不写 `FOREIGN KEY` / `REFERENCES` / `ON DELETE CASCADE`；关联字段**必须被索引覆盖**——单独 `i_<表名>_<字段>`，**或**联合索引的**最左前导列**（只落在联合索引的非前导位置不算覆盖）
 - 统一字段在规范里只给**逻辑类型**（`boolean`/`tinyint`/`bigint`/`datetime`/`int`），DDL 必须落成**目标物理库**的类型——**`TINYINT` 不是通用类型**（PG 用 `SMALLINT`、Oracle 用 `NUMBER(3)`、SQL Server 的 `TINYINT` 是无符号 0–255），**禁止跨库照抄 MySQL** → [references/type-mapping.md](references/type-mapping.md)
 - **`id` 的类型先定生成策略再落**：自增 / 雪花数值是 `bigint`，ULID / UUID / 字符串型雪花是 `varchar(36)`，同批表必须统一；用雪花 / ULID / UUID 时不加自增 → [references/type-mapping.md](references/type-mapping.md)
 - **`boolean`（`removed` 及各类状态位）一律存 0/1**（0=未删除 / 未启用，1=已删除 / 已启用），**不用库的原生 `BOOLEAN`**；DML 一律写 `removed = 0` / `removed = 1`。ORM 侧必须让 `Boolean` 映射到 0/1（`hibernate.type.preferred_boolean_jdbc_type: TINYINT`），否则 schema 校验报 `found [tinyint], but expecting [bit]` → [references/type-mapping.md](references/type-mapping.md)
@@ -32,7 +32,7 @@ SKILL.md 只放**硬约束 + 取名 5 步 + 自检清单 + 索引**，细则按�
 
 > 实体类名 = 表名去掉模块前缀，所以**表名设计直接决定 Java 类长什么样**。
 
-1. **选模块前缀**（2-4 小写字母）—— 见 [naming.md 的常用模块前缀表](references/naming.md#数据库对象命名规则)。不得与对象前缀冲突（`fn`、`idx`、`seq`、`pk` 等已占用）
+1. **选模块前缀**（2-4 小写字母）—— 见 [naming.md 的常用模块前缀表](references/naming.md#数据库对象命名规则)。不得与对象前缀冲突（`fn`、`i`、`seq`、`pk` 等已占用）
 2. **取功能点**（≤ 3 个完整英文单词，单数，业务名词或动宾）—— 必须**自解释**：去掉前缀后能让同事一眼看懂
 3. **拼接**：`<模块前缀>_<功能点>`，全小写，下划线连接，**不带库前缀**（`wo_workorder` ✓，`app_wo_workorder` ✗）
 4. **检查长度**：硬上限 MySQL ≤ 64 字符，**建议 ≤ 30**——索引名/外键名要在表名之上再加前缀和字段名，表名吃满 64 就没余量了（见 [naming.md 的长度预算](references/naming.md#对象名长度与超长降级)）
@@ -46,9 +46,9 @@ SKILL.md 只放**硬约束 + 取名 5 步 + 自检清单 + 索引**，细则按�
 
 - [ ] 表名 = `<模块前缀>_<功能点>`，全小写、单数、≤ 64 字符、**不带库前缀**
 - [ ] 功能点自解释，未用 `info` / `data` / `record` / `item` / `main` / `detail` / `log`
-- [ ] 模块前缀未占用对象前缀（`fk` / `idx` / `seq` / `pk` 等 19 个）
+- [ ] 模块前缀未占用对象前缀（`fk` / `i` / `seq` / `pk` 等 19 个）
 - [ ] 用到统一字段就叫对名字：`created_at` / `created_by` / `updated_*` / `removed` / `version` / `sort_order`，无 `create_time` / `is_deleted` / `del_flag` 变体
-- [ ] 每个关联字段都被索引覆盖：单独 `idx_<表名>_<字段>`，**或**在某个联合索引里当**最左前导列**（只在非前导位置 = 没覆盖）——默认不建物理外键，索引是 JOIN 性能的唯一保障
+- [ ] 每个关联字段都被索引覆盖：单独 `i_<表名>_<字段>`，**或**在某个联合索引里当**最左前导列**（只在非前导位置 = 没覆盖）——默认不建物理外键，索引是 JOIN 性能的唯一保障
 - [ ] 索引/约束名未超目标库上限（MySQL 64、PgSQL 63）：超长时**先缩表名段，再缩字段名段，最后才砍段**，每个单词**缩到 2–4 字符**且全项目一致，**表名段保留**、无随机后缀
 - [ ] SQL 文本：关键字大写、2 空格缩进、无 `SELECT *`、`INSERT` 指定字段名
 - [ ] 统一字段的类型已按**目标物理库**换算（不是照抄逻辑类型，**更不是照抄 MySQL 的 `TINYINT`**）→ [references/type-mapping.md](references/type-mapping.md)

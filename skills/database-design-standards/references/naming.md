@@ -77,7 +77,7 @@ a-z 0-9 和 \_ 共 37个，即所有的数据库对象均采用小写字母、�
 - **模块前缀长度**：控制在 **2-4 字符**，优先用通用缩写。
   - 推荐：`wo`、`cu`、`fin`、`sys`、`prod`、`inv`
   - 不推荐：`w`（过短，含义不清）、`customer`、`finance`（过长，挤压功能点空间，违背"前缀"用意）
-- **不要与数据库对象前缀冲突**：模块前缀不得与下文「前缀命名规则」中的对象前缀同名，避免一眼看不出 `fn_invoice` 是函数还是表。已占用、需要避开的对象前缀：`t`、`v`、`mv`、`pkg`、`sp`、`trg`、`fn`、`pk`、`fk`、`uk`、`idx`、`job`、`seq`、`dbl`、`syn`、`tp`、`cst`、`tbs`、`p`。例如财务模块不要用 `fn`，建议改用 `fin`。
+- **不要与数据库对象前缀冲突**：模块前缀不得与下文「前缀命名规则」中的对象前缀同名，避免一眼看不出 `fn_invoice` 是函数还是表。已占用、需要避开的对象前缀：`t`、`v`、`mv`、`pkg`、`sp`、`trg`、`fn`、`pk`、`fk`、`uk`、`i`、`job`、`seq`、`dbl`、`syn`、`tp`、`cst`、`tbs`、`p`。例如财务模块不要用 `fn`，建议改用 `fin`。
 - **功能点词性**：使用名词或动宾短语，单数形式。
   - 单数：`wo_workorder`，不是 `wo_workorders`
   - 名词：`cu_customer`、`fin_invoice`
@@ -148,7 +148,7 @@ a-z 0-9 和 \_ 共 37个，即所有的数据库对象均采用小写字母、�
 | 8       | 主键(primary key)         | pk       | `pk_wo_workorder` |
 | 9       | 外键(Foreign Key)         | fk       | `fk_wo_workorder_cu_customer` |
 | 10      | 唯一键/约束(unique key)      | uk       | `uk_cu_customer_phone` |
-| 11      | 索引(index)               | idx      | `idx_wo_workorder_status` |
+| 11      | 索引(index)               | i      | `i_wo_workorder_status` |
 | 12      | 作业(job)                 | job      | `job_cleanup_log` |
 | 13      | 序列(Sequence)            | seq      | `seq_wo_workorder_id` |
 | 14      | DBLINK                  | dbl      | `dbl_erp_prod` |
@@ -169,7 +169,7 @@ a-z 0-9 和 \_ 共 37个，即所有的数据库对象均采用小写字母、�
   - 分区：`p_<表名>_<分区键>` → `p_wo_workorder_2025`
   - 序列：`seq_<表名>_<字段>` → `seq_wo_workorder_id`（多表共享时改用 `seq_<模块>_<业务含义>`）
 - **索引/约束/外键的字段顺序约定**：
-  - 索引 `idx_<表名>_<字段>`，复合索引按索引中字段顺序拼接：`idx_wo_workorder_status_priority`；拼出来超长怎么缩 → [对象名长度与超长降级](#对象名长度与超长降级)
+  - 索引 `i_<表名>_<字段>`，复合索引按索引中字段顺序拼接：`i_wo_workorder_status_priority`；拼出来超长怎么缩 → [对象名长度与超长降级](#对象名长度与超长降级)
   - 唯一键 `uk_<表名>_<字段>`，复合唯一键同上
   - 外键 `fk_<本表>_<引用表>`，方向是 from→to：`fk_wo_workorder_cu_customer` 表示 workorder 表引用 customer。**默认不建物理外键**，这个前缀仅供评审通过的例外场景使用，策略见 [foreign-keys.md](foreign-keys.md)
   - 约束 `cst_<表名>_<语义>`：`cst_wo_workorder_check_status`
@@ -177,7 +177,7 @@ a-z 0-9 和 \_ 共 37个，即所有的数据库对象均采用小写字母、�
 
 ##### 对象名长度与超长降级
 
-适用于所有**由表名派生**的对象名：`idx_` / `uk_` / `fk_` / `cst_` / `seq_` / `pk_`。上限见上文[标识符长度表](#数据库对象命名规则)（多库部署取**最小值**）。
+适用于所有**由表名派生**的对象名：`i_` / `uk_` / `fk_` / `cst_` / `seq_` / `pk_`。上限见上文[标识符长度表](#数据库对象命名规则)（多库部署取**最小值**）。
 
 **先算预算，别等报错**：
 
@@ -194,14 +194,14 @@ len(前缀_) + len(表名) + Σ(len(字段名) + 1)  ≤  目标库上限
 
 | 级 | 做法 | 结果 | 长度 |
 |----|------|------|------|
-| 0 | 全拼 | `idx_fin_customer_reconciliation_customer_id_reconcile_status_created_at` | 71 ✗ |
-| 1 | 先缩**表名段**：功能点每个单词缩到 **2–4 字符**（`customer`→`cus`、`reconciliation`→`rcn`），模块前缀 `fin` 原样保留（它是反查表的路由信息）；**仍超就改用多词首字母连写**：`customer_reconciliation`→`cr`，得 `idx_fin_cr_customer_id_reconcile_status_created_at`（50）。**表名段是最大的长度来源，先从它下手，字段名段一个字不动** | `idx_fin_cus_rcn_customer_id_reconcile_status_created_at` | 55 ✓ MySQL/PgSQL 到此为止 |
-| 2 | 仍超再缩**字段名段**：每个单词同样缩到 **2–4 字符**（`customer`→`cus`、`reconcile`→`rcn`、`status`→`sts`），同样可多词首字母连写（`reconcile_status`→`rs`），统一字段 `created_at` 不缩。**所有索引列仍出现在名字里** | `idx_fin_cus_rcn_cus_id_rcn_sts_created_at` | 41 ✓ |
-| 3 | 目标库更紧（Oracle 12.1 上限 30）才走：砍非前导列，留**前导列 + `_Ncol`**（N = 索引列数），完整列序写进 DDL 注释或索引 `COMMENT` | `idx_fin_cus_rcn_cus_id_3col` | 27 ✓ |
-| 4 | 兜底：`idx_<表名段>_<序号>`，序号 = 该表 DDL 中第几个索引（从 1 起） | `idx_fin_cus_rcn_1` | 17 ✓ |
+| 0 | 全拼 | `i_fin_customer_reconciliation_customer_id_reconcile_status_created_at` | 69 ✗ |
+| 1 | 先缩**表名段**：功能点每个单词缩到 **2–4 字符**（`customer`→`cst`、`reconciliation`→`rcn`），模块前缀 `fin` 原样保留（它是反查表的路由信息）；**仍超就改用多词首字母连写**：`customer_reconciliation`→`cr`，得 `i_fin_cr_customer_id_reconcile_status_created_at`（48）。**表名段是最大的长度来源，先从它下手，字段名段一个字不动** | `i_fin_cst_rcn_customer_id_reconcile_status_created_at` | 53 ✓ MySQL/PgSQL 到此为止 |
+| 2 | 仍超再缩**字段名段**：每个单词同样缩到 **2–4 字符**（`customer`→`cst`、`reconcile`→`rcn`、`status`→`sts`），同样可多词首字母连写（`reconcile_status`→`rs`），统一字段 `created_at` 不缩。**所有索引列仍出现在名字里** | `i_fin_cst_rcn_cst_id_rcn_sts_created_at` | 39 ✓ |
+| 3 | 目标库更紧（Oracle 12.1 上限 30）才走：砍非前导列，留**前导列 + `_Ncol`**（N = 索引列数），完整列序写进 DDL 注释或索引 `COMMENT` | `i_fin_cst_rcn_cst_id_3col` | 25 ✓ |
+| 4 | 兜底：`i_<表名段>_<序号>`，序号 = 该表 DDL 中第几个索引（从 1 起） | `i_fin_cst_rcn_1` | 15 ✓ |
 
 - 级 1-2 无损；只跑 MySQL / PgSQL 时**级 1 通常就够了**（表名一缩就掉进上限）。级 3-4 开始丢列信息，只给 Oracle 12.1（30）这类紧上限用
-- `fk_<本表>_<引用表>` 有两段表名，级 1 对两段都适用：`fk_fin_customer_reconciliation_cu_customer`（42）→ `fk_fin_cus_rcn_cu_cus`（21）
+- `fk_<本表>_<引用表>` 有两段表名，级 1 对两段都适用：`fk_fin_customer_reconciliation_cu_customer`（42）→ `fk_fin_cst_rcn_cu_cst`（21）
 - **连级 4 都超 → 表名本身太长，回去改表名**（这正是"表名建议 ≤ 30"的原因）
 - 降级后**仍须在本表内唯一**：撞名加 `_2` / `_3`（沿用级 4 的序号写法，不要另起一套）
 
@@ -209,17 +209,17 @@ len(前缀_) + len(表名) + Σ(len(字段名) + 1)  ≤  目标库上限
 
 > 本节只管**派生名（索引 / 约束名）里为凑长度做的缩写**。表名、字段名本身仍按[基本命名原则](#基本命名原则)用完整英文单词——不冲突：缩的是拼进派生名里的那一段，不是改对象名。
 
-1. **每个单词缩到 2–4 个字符**，长度按单词长短定（长单词缩到 3–4，短单词缩到 2），优先用公认缩写：`customer`→`cus`、`reconciliation`→`rcn`、`message`→`msg`、`amount`→`amt`、`quantity`→`qty`、`status`→`sts`、`description`→`dsc`、`configuration`→`cfg`、`priority`→`pri`、`attachment`→`att`
+1. **每个单词缩到 2–4 个字符**，长度按单词长短定（长单词缩到 3–4，短单词缩到 2），优先用公认缩写：`customer`→`cst`、`reconciliation`→`rcn`、`message`→`msg`、`amount`→`amt`、`quantity`→`qty`、`status`→`sts`、`description`→`dsc`、`configuration`→`cfg`、`priority`→`pri`、`attachment`→`att`
 2. 没有公认缩写就取单词**头 2–4 个字母**：`shipment`→`ship`、`settlement`→`stl`；单词本身已经够短就不动（`id`、`no`、`at`、`log`）
 3. **极端情况：多个单词首字母直接连写。** 逐词缩完还超，就不再逐词缩，把这一段里每个单词的首字母连起来当缩写：`customer_reconciliation`→`cr`、`reconcile_status`→`rs`、`phone_number`→`pn`
-4. **缩写不得占用模块前缀或对象前缀**（全表见[前缀命名规则](#前缀命名规则)与上文模块前缀表）。容易撞的：`customer` 不要缩成 `cst`（被「约束 CONSTRAINT」的 `cst_` 占用）、`product` 不要缩成 `prod`、`work_order` 不要连写成 `wo`、`invoice` 不要缩成 `inv`——这些都跟前缀同形，会让名字读不出是表还是对象。缩写连写结果若撞了，就换一个 2–4 字母组合或退回逐词缩写
+4. **段内缩写不必避让对象前缀**：对象前缀只出现在对象名**开头**（`i_` / `uk_` / `fk_` / `cst_` …，全表见[前缀命名规则](#前缀命名规则)），索引名里的 `cst` 落在表名段位置、前面已有 `i_` 定对象类型，不构成歧义，`customer`→`cst` 可用。**唯一要避的是与本名自己的模块前缀同形**——表 `wo_work_order` 的功能点缩成 `wo` 会拼出 `i_wo_wo_…`，读不出层级；这种情况换一个 2–4 字母组合，或退回逐词缩写
 5. **同一个词全项目只用一种缩写**，和模块前缀表一起登记在项目 README / wiki，不要 `cst` / `cust` / `cmr` 混用
-6. 不许用的缩写：撞 SQL 关键字（`desc` / `order` / `group` / `select` / `set` / `key` / `all`）、单字母（`_id` / `_no` 这类既定后缀除外）、拼音或拼音首字母（`kh` / `gd`）。撞关键字就换词内另一个 3 字母组合：`settlement` 头 3 字母是 `set`（SQL 关键字）→ 取 `stl`
+6. 不许用的缩写：撞 SQL 关键字（`desc` / `order` / `group` / `select` / `set` / `key` / `all`）、**段内词缩写**用单字母（`_id` / `_no` 这类既定后缀除外）、拼音或拼音首字母（`kh` / `gd`）。撞关键字就换词内另一个 2–4 字母组合：`settlement` 头 3 字母是 `set`（SQL 关键字）→ 取 `stl`。**本条只管段内的词缩写，不限制对象前缀**——前缀里 `i`（索引）、`v`（视图）、`p`（分区）、`t`（表）本来就是单字母
 7. **只缩派生名，不改对象本身**：表仍叫 `fin_customer_reconciliation`、字段仍叫 `customer_id`，统一字段（`created_at` / `removed` / `version`）更不许为凑长度改名——反查靠 DDL 里的 `ON <表名全名>` 和名字里的模块前缀
 
 **任何一级都不许做的事：**
 
-- **不许省掉表名段**（`idx_customer_id`、`idx_status` ✗）：索引名的**唯一范围各库不同**，见下表，按最严口径必须带表名；DBA 排查也靠名字反查表
+- **不许省掉表名段**（`i_customer_id`、`i_status` ✗）：索引名的**唯一范围各库不同**，见下表，按最严口径必须带表名；DBA 排查也靠名字反查表
 
   | 库 | 索引名唯一范围 | 不带表名段会怎样 |
   |---|---|---|
@@ -230,7 +230,7 @@ len(前缀_) + len(表名) + Σ(len(字段名) + 1)  ≤  目标库上限
   | 达梦 DM | 按最严口径视为 schema 内唯一 | 信创上线前逐库验证，不要照搬 MySQL 结论 |
   | H2 | 表内唯一 | 测试库不报错，**掩盖 PG / Oracle 上的问题** |
 
-  → **统一都带表名段**：既是跨库可移植的必要条件，也是 DBA 从索引名反查表的唯一线索。**别拿 H2 的宽松行为当准**——它是表内唯一，写成 `idx_status` 在测试里一路绿灯，到 PG / Oracle 上才炸
-- **不许加随机 / 哈希后缀**（`idx_wo_workorder_a1b2` ✗）：不可读，且脚本重跑一次名字就变，diff 和迁移都不可复现
+  → **统一都带表名段**：既是跨库可移植的必要条件，也是 DBA 从索引名反查表的唯一线索。**别拿 H2 的宽松行为当准**——它是表内唯一，写成 `i_status` 在测试里一路绿灯，到 PG / Oracle 上才炸
+- **不许加随机 / 哈希后缀**（`i_wo_workorder_a1b2` ✗）：不可读，且脚本重跑一次名字就变，diff 和迁移都不可复现
 - **不许靠数据库自动命名**（MySQL `ADD INDEX (a, b)` 默认取名 `a`，重名自动加 `_2`）：跨库行为不一致，评审时也看不出索引用途
 - **上线后不要改索引名**：改名 = `DROP INDEX` + `CREATE INDEX`，大表上代价很高——初版就按阶梯留足余量
